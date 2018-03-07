@@ -78,9 +78,12 @@ class GoogleAuthBackend(object):
         self.flask_app = None
         self.google_oauth = None
         self.api_rev = None
+        self.create_users = False
 
     def init_app(self, flask_app):
         self.flask_app = flask_app
+
+        self.create_users = get_config_param('create_users')
 
         self.login_manager.init_app(self.flask_app)
 
@@ -164,10 +167,15 @@ class GoogleAuthBackend(object):
 
         session = settings.Session()
 
+        # See if there is an existing user with this email address
         user = session.query(models.User).filter(
-            models.User.username == username).first()
+            models.User.email == email).first()
 
         if not user:
+            # See if we are supposed to create new users automatically
+            if not create_users:
+                return redirect(url_for('airflow.noaccess'))
+
             user = models.User(
                 username=username,
                 email=email,
