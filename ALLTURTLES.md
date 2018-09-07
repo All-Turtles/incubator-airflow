@@ -1,10 +1,12 @@
 This repository contains our fork of Airflow, which we use to make some tweaks.
 
-To sync changes from the upstream (original) Airflow repository, run the following:
+To sync changes from the [original Airflow repository](https://github.com/apache/incubator-airflow), run the following:
 
 Add the upstream repo as a remote. You only need to do this once.
-`git remote add upstream git@github.com:apache/incubator-airflow.git`
-`git remote -v`
+```
+git remote add upstream git@github.com:apache/incubator-airflow.git
+git remote -v
+```
 
 You should see something like this:
 ```
