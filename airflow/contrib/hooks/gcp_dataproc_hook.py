@@ -1,21 +1,27 @@
 # -*- coding: utf-8 -*-
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 #
 import time
 import uuid
 
 from apiclient.discovery import build
+from zope.deprecation import deprecation
 
 from airflow.contrib.hooks.gcp_api_base_hook import GoogleCloudBaseHook
 from airflow.utils.log.logging_mixin import LoggingMixin
@@ -47,6 +53,8 @@ class _DataProcJob(LoggingMixin):
                 self.log.error('DataProc job %s has errors', self.job_id)
                 self.log.error(self.job['status']['details'])
                 self.log.debug(str(self.job))
+                self.log.info('Driver output location: %s',
+                              self.job['driverOutputResourceUri'])
                 return False
             if 'CANCELLED' == self.job['status']['state']:
                 print(str(self.job))
@@ -54,8 +62,12 @@ class _DataProcJob(LoggingMixin):
                 if 'details' in self.job['status']:
                     self.log.warning(self.job['status']['details'])
                 self.log.debug(str(self.job))
+                self.log.info('Driver output location: %s',
+                              self.job['driverOutputResourceUri'])
                 return False
             if 'DONE' == self.job['status']['state']:
+                self.log.info('Driver output location: %s',
+                              self.job['driverOutputResourceUri'])
                 return True
             self.log.debug(
                 'DataProc job %s is %s',
@@ -75,7 +87,7 @@ class _DataProcJob(LoggingMixin):
 
 class _DataProcJobBuilder:
     def __init__(self, project_id, task_id, cluster_name, job_type, properties):
-        name = task_id + "_" + str(uuid.uuid1())[:8]
+        name = task_id + "_" + str(uuid.uuid4())[:8]
         self.job_type = job_type
         self.job = {
             "job": {
@@ -135,7 +147,7 @@ class _DataProcJobBuilder:
         self.job["job"][self.job_type]["mainPythonFileUri"] = main
 
     def set_job_name(self, name):
-        self.job["job"]["reference"]["jobId"] = name + "_" + str(uuid.uuid1())[:8]
+        self.job["job"]["reference"]["jobId"] = name + "_" + str(uuid.uuid4())[:8]
 
     def build(self):
         return self.job
@@ -192,14 +204,23 @@ class DataProcHook(GoogleCloudBaseHook):
     def __init__(self,
                  gcp_conn_id='google_cloud_default',
                  delegate_to=None,
-                 api_version='v1'):
+                 api_version='v1beta2'):
         super(DataProcHook, self).__init__(gcp_conn_id, delegate_to)
         self.api_version = api_version
 
     def get_conn(self):
         """Returns a Google Cloud Dataproc service object."""
         http_authorized = self._authorize()
-        return build('dataproc', self.api_version, http=http_authorized)
+        return build(
+            'dataproc', self.api_version, http=http_authorized,
+            cache_discovery=False)
+
+    def get_cluster(self, project_id, region, cluster_name):
+        return self.get_conn().projects().regions().clusters().get(
+            projectId=project_id,
+            region=region,
+            clusterName=cluster_name
+        ).execute(num_retries=5)
 
     def submit(self, project_id, job, region='global'):
         submitted = _DataProcJob(self.get_conn(), project_id, job, region)
@@ -210,7 +231,16 @@ class DataProcHook(GoogleCloudBaseHook):
         return _DataProcJobBuilder(self.project_id, task_id, cluster_name,
                                    job_type, properties)
 
-    def await(self, operation):
+    def wait(self, operation):
         """Awaits for Google Cloud Dataproc Operation to complete."""
         submitted = _DataProcOperation(self.get_conn(), operation)
         submitted.wait_for_done()
+
+
+setattr(
+    DataProcHook,
+    "await",
+    deprecation.deprecated(
+        DataProcHook.wait, "renamed to 'wait' for Python3.7 compatibility"
+    ),
+)
