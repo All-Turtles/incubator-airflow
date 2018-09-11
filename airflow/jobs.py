@@ -564,6 +564,7 @@ class SchedulerJob(BaseJob):
 
         self.num_runs = num_runs
         self.run_duration = run_duration
+        self._processor_poll_interval = 1.0
 
         self.do_pickle = do_pickle
         super(SchedulerJob, self).__init__(*args, **kwargs)
@@ -1724,6 +1725,8 @@ class SchedulerJob(BaseJob):
             loop_end_time = time.time()
             self.log.debug("Ran scheduling loop in %.2f seconds",
                            loop_end_time - loop_start_time)
+            self.log.debug("Sleeping for %.2f seconds", self._processor_poll_interval)
+            time.sleep(self._processor_poll_interval)
 
             # Exit early for a test mode
             if processor_manager.max_runs_reached():
