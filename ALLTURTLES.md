@@ -1,4 +1,4 @@
-This repository contains our fork of Airflow, which we use to make some tweaks.
+This repository contains our fork of Airflow, which we use to make some tweaks and fix bugs before they're addressed in official Airflow releases. The code in the `at-working` branch should be the same as the code that is deployed on our Airflow server(s).
 
 To sync changes from the [original Airflow repository](https://github.com/apache/incubator-airflow), run the following:
 
